@@ -1,29 +1,34 @@
-pub trait UnrolledIterator: ExactSizeIterator {
-    fn strict_take(&mut self, n: usize) -> impl ExactSizeIterator<Item = Self::Item> {
-        let len = self.len();
-        if len <= n {
-            self.take(len)
-        } else {
-            self.take(n)
-        }
-    }
-
-    fn strict_any<F>(&mut self, f: F) -> bool
+fn maybe_strict_position<I, P>(iter: &mut I, predicate: P) -> Option<Option<usize>>
     where
-        Self: Sized,
-        F: FnMut(Self::Item) -> bool,
+        I: Sized + Iterator,
+        P: FnMut(I::Item) -> bool,
+{
+    let mut predicate = predicate;
+    let m = iter.map(&mut predicate)
+        .enumerate()
+        .map(|(i, p)| if p { i } else { usize::MAX })
+        .min()?;
+
+    Some((m < usize::MAX).then_some(m))
+}
+
+pub trait UnrolledIterator: Iterator {
+    fn strict_any<F>(&mut self, f: F) -> bool
+        where
+            Self: Sized,
+            F: FnMut(Self::Item) -> bool,
     {
         let mut f = f;
         self.map(&mut f).fold(false, |x, y| x | y)
     }
 
     fn unrolled_any<F>(&mut self, n: usize, f: F) -> bool
-    where
-        Self: Sized,
-        F: FnMut(Self::Item) -> bool,
+        where
+            Self: Sized,
+            F: FnMut(Self::Item) -> bool,
     {
         let mut f = f;
-        while n > 0 && self.len() >= n {
+        while n > 0 && self.size_hint().0 >= n {
             let x = self.take(n).strict_any(&mut f);
             if x {
                 return true;
@@ -33,49 +38,49 @@ pub trait UnrolledIterator: ExactSizeIterator {
     }
 
     fn strict_all<F>(&mut self, f: F) -> bool
-    where
-        Self: Sized,
-        F: FnMut(Self::Item) -> bool,
+        where
+            Self: Sized,
+            F: FnMut(Self::Item) -> bool,
     {
         let mut f = f;
         !self.strict_any(|x| !f(x))
     }
 
     fn unrolled_all<F>(&mut self, n: usize, f: F) -> bool
-    where
-        Self: Sized,
-        F: FnMut(Self::Item) -> bool,
+        where
+            Self: Sized,
+            F: FnMut(Self::Item) -> bool,
     {
         let mut f = f;
         !self.unrolled_any(n, |x| !f(x))
     }
 
     fn strict_position<P>(&mut self, predicate: P) -> Option<usize>
-    where
-        Self: Sized,
-        P: FnMut(Self::Item) -> bool,
+        where
+            Self: Sized,
+            P: FnMut(Self::Item) -> bool,
     {
-        let l = self.len();
         let mut predicate = predicate;
-        let min = self
-            .map(&mut predicate)
-            .enumerate()
-            .fold(l, |x, (i, y)| x.min(if y { i } else { l }));
-        (min < l).then_some(min)
+        maybe_strict_position(self, &mut predicate).flatten()
     }
 
     fn unrolled_position<P>(&mut self, n: usize, predicate: P) -> Option<usize>
-    where
-        Self: Sized,
-        P: FnMut(Self::Item) -> bool,
+        where
+            Self: Sized,
+            P: FnMut(Self::Item) -> bool,
     {
         let mut predicate = predicate;
 
         let mut skipped = 0;
-        while n > 0 && self.len() >= n {
-            let min = self.take(n).strict_position(&mut predicate);
+        while n > 0 && self.size_hint().0 >= n {
+            let min = maybe_strict_position(self, &mut predicate);
+
             if let Some(m) = min {
-                return Some(m + skipped);
+                if let Some(z) = m {
+                    return Some(z + skipped);
+                }
+            } else {
+                return None;
             }
             skipped += n;
         }
@@ -83,7 +88,7 @@ pub trait UnrolledIterator: ExactSizeIterator {
     }
 }
 
-impl<I: ExactSizeIterator> UnrolledIterator for I {}
+impl<I: Iterator> UnrolledIterator for I {}
 
 #[cfg(test)]
 mod tests {
