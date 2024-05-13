@@ -10,16 +10,9 @@ bench = false
 
 [dev-dependencies]
 criterion = "0.5.1"
-proptest = "1.4.0"
-fake = "2.9.2"
-rand = "0.8.5"
 
 [[bench]]
 name = "benchmark_position"
-harness = false
-
-[[bench]]
-name = "benchmark_any"
 harness = false
 
 [dependencies]
