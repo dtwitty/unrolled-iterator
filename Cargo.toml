@@ -5,17 +5,17 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports", "csv"] }
+
 [lib]
 bench = false
-
-[dev-dependencies]
-criterion = "0.5.1"
 
 [[bench]]
 name = "benchmark_position"
 harness = false
 
-[dependencies]
-criterion = { version = "0.5.1", features = ["html_reports", "csv"] }
-
+[[bench]]
+name = "benchmark_any"
+harness = false
 
